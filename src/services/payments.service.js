@@ -38,14 +38,18 @@ async function simulatePaymentSuccess(user_id, order_id, { payment_gateway = 'SI
     amount: order.amount,
     payment_method,
     status: 'SUCCESS',
-    gateway_response: gateway_response || 'Simulated success',
+    gateway_response: gateway_response || {
+      provider: "SIMULATED",
+      status: "SUCCESS",
+      order_id: order_id,
+      timestamp: new Date().toISOString()
+    },
   });
 
-  // mark order as PAID
-  await ordersRepository.updateOrderToPaid(order_id);
+  // mark order as PAID with completed_at
+  const updatedOrder = await ordersRepository.updateOrderToPaid(order_id);
 
   // mark listing as SOLD and set sold_at using database timestamp
-  const updatedOrder = await ordersRepository.findOrderById(order_id);
   const reservationId = updatedOrder.reservation_id;
   if (reservationId) {
     const reservationsRepo = require('../repositories/reservations.repository');
@@ -84,7 +88,7 @@ async function simulatePaymentSuccess(user_id, order_id, { payment_gateway = 'SI
     entity_id: order_id,
   });
 
-  return payment;
+  return updatedOrder;
 }
 
 async function handleSuccessfulPayment(order, paymentPayload) {
@@ -103,9 +107,8 @@ async function handleSuccessfulPayment(order, paymentPayload) {
     gateway_response: paymentPayload.gateway_response,
   });
 
-  await ordersRepository.updateOrderToPaid(order.order_id);
+  const updatedOrder = await ordersRepository.updateOrderToPaid(order.order_id);
 
-  const updatedOrder = await ordersRepository.findOrderById(order.order_id);
   const reservationId = updatedOrder.reservation_id;
   if (reservationId) {
     const reservationsRepo = require('../repositories/reservations.repository');
@@ -142,7 +145,7 @@ async function handleSuccessfulPayment(order, paymentPayload) {
     entity_id: order.order_id,
   });
 
-  return payment;
+  return updatedOrder;
 }
 
 async function createRazorpayOrder(user_id, order_id) {

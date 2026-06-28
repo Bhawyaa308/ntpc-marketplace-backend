@@ -28,8 +28,12 @@ const simulatePaymentValidator = [
 
   body('gateway_response')
     .optional()
-    .isString()
-    .withMessage('gateway_response must be a string'),
+    .custom((value) => {
+      if (value !== null && typeof value !== 'object' && typeof value !== 'string') {
+        throw new Error('gateway_response must be a string or object');
+      }
+      return true;
+    }),
 
   (req, res, next) => {
     const errors = validationResult(req);

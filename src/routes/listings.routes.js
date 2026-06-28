@@ -86,6 +86,22 @@ router.get('/', listingsController.getAllListings);
  *             schema:
  *               $ref: '#/components/schemas/NotFound'
  */
+
+router.post(
+  '/upload',
+  authMiddleware,
+  (req, res, next) => {
+    req.app.locals.upload.array('images', 10)(req, res, (err) => {
+      if (err) {
+        console.error("UPLOAD ERROR:", err);
+        return res.status(500).json({ error: err.message });
+      }
+      next();
+    });
+  },
+  listingsController.uploadImages
+);
+
 router.get('/:id', listingsController.getListingById);
 
 /**
@@ -271,5 +287,32 @@ router.get('/:id/images', listingsController.getListingImages);
  *         description: Image deleted successfully
  */
 router.delete('/:id/images', authMiddleware, listingsController.deleteListingImage);
+
+/**
+ * @swagger
+ * /api/listings/upload:
+ *   post:
+ *     summary: Upload images
+ *     tags: [Listings]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               images:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                   format: binary
+ *             required:
+ *               - images
+ *     responses:
+ *       200:
+ *         description: Images uploaded successfully
+ */
 
 module.exports = router;

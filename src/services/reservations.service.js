@@ -57,6 +57,17 @@ async function approveReservation(seller_id, reservation_id) {
   // mark listing RESERVED
   await listingsRepository.updateListingById(reservation.listing_id, { status: 'RESERVED' });
 
+  const listing = await listingsRepository.findListingById(reservation.listing_id);
+  const existingOrder = await ordersRepository.findOrderByReservationId(reservation_id);
+  if (!existingOrder) {
+    await ordersRepository.createOrderFromReservation({
+      reservation_id,
+      buyer_id: reservation.buyer_id,
+      seller_id: reservation.seller_id,
+      amount: listing?.price || 0,
+    });
+  }
+
   // reject all other pending reservations for the same listing
   await reservationsRepository.rejectPendingReservationsForListing(reservation.listing_id, reservation_id);
 

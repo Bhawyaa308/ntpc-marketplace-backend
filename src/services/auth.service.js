@@ -3,7 +3,7 @@ const jwt = require('jsonwebtoken');
 const authRepository = require('../repositories/auth.repository');
 
 const SALT_ROUNDS = 12;
-const JWT_SECRET = process.env.JWT_SECRET;
+const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret';
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '1h';
 
 function createError(status, message) {
@@ -28,7 +28,7 @@ async function registerUser({
   password,
   designation = null,
   profile_picture = null,
-  role_id = 'USER', // Default to USER role
+  role_id = 1, // Default to USER role
 }) {
   const [existingByEmployeeId, existingByEmail, existingByPhone] = await Promise.all([
     authRepository.findUserByEmployeeId(employee_id),
@@ -60,7 +60,7 @@ async function registerUser({
     township_id,
     profile_picture,
     password_hash,
-    role_id, // Pass role_id to createUser - now stored directly in users table
+    role_id: Number(role_id) || 1, // Pass role_id to createUser - now stored directly in users table
   });
 
   const auditService = require('./audit.service');

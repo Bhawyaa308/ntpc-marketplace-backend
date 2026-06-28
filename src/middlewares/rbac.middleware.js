@@ -1,5 +1,21 @@
 const { pool } = require('../config/db');
 
+function normalizeRole(role) {
+  if (role === null || role === undefined) return '';
+  const value = String(role).trim().toUpperCase();
+  const roleMap = {
+    USER: 'USER',
+    ADMIN: 'ADMIN',
+    SUPER_ADMIN: 'SUPER_ADMIN',
+    SUPERADMIN: 'SUPER_ADMIN',
+    '1': 'USER',
+    '2': 'ADMIN',
+    '3': 'SUPER_ADMIN',
+  };
+
+  return roleMap[value] || value;
+}
+
 function authorizeRoles(...allowedRoles) {
   return async function (req, res, next) {
     if (!req.user || !req.user.user_id) {
@@ -24,7 +40,7 @@ function authorizeRoles(...allowedRoles) {
       }
 
       const userRole = rows[0].role_id;
-      const hasRole = allowedRoles.includes(userRole);
+      const hasRole = allowedRoles.some((allowedRole) => normalizeRole(allowedRole) === normalizeRole(userRole));
 
       if (!hasRole) {
         return res.status(403).json({

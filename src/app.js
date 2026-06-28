@@ -1,4 +1,7 @@
 const express = require('express');
+const fs = require('fs');
+const path = require('path');
+const multer = require('multer');
 const { swaggerSpec, swaggerUi } = require('./config/swagger');
 const authRoutes = require('./routes/auth.routes');
 const listingsRoutes = require('./routes/listings.routes');
@@ -13,6 +16,8 @@ const notificationsRoutes = require('./routes/notifications.routes');
 const categoriesRoutes = require('./routes/categories.routes');
 const profileRoutes = require('./routes/profile.routes');
 const reportsRoutes = require('./routes/reports.routes');
+const transfersRoutes = require('./routes/transfers.routes');
+const townshipsRoutes = require('./routes/townships.routes');
 
 const app = express();
 const cors = require("cors");
@@ -26,6 +31,46 @@ app.use(
 // Core middleware
 app.use(express.json({ verify: (req, res, buf) => { req.rawBody = buf; } }));
 app.use(express.urlencoded({ extended: true }));
+
+// Multer configuration for file uploads
+const uploadDir = path.resolve(__dirname, '../uploads');
+fs.mkdirSync(uploadDir, { recursive: true });
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    fs.mkdirSync(uploadDir, { recursive: true });
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const timestamp = Date.now();
+    const random = Math.floor(Math.random() * 10000);
+    const safeName = file.originalname.replace(/\s+/g, '-');
+    cb(null, `${timestamp}-${random}-${safeName}`);
+  },
+});
+
+const upload = multer({
+  storage,
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+    const extension = path.extname(file.originalname).toLowerCase();
+    const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+    const mimeType = file.mimetype ? file.mimetype.toLowerCase() : '';
+
+    if (allowedTypes.includes(mimeType) || allowedExtensions.includes(extension)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Only JPEG, PNG, GIF, and WEBP are allowed.'));
+    }
+  },
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB max
+});
+
+// Store multer instance for route use
+app.locals.upload = upload;
+
+// Serve static files from uploads folder
+app.use('/uploads', express.static(uploadDir));
 
 // Swagger documentation endpoint
 app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
@@ -44,6 +89,8 @@ app.use('/api/notifications', notificationsRoutes);
 app.use('/api/categories', categoriesRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/reports', reportsRoutes);
+app.use('/api/transfers', transfersRoutes);
+app.use('/api/townships', townshipsRoutes);
 
 // Fallback for unmatched routes
 app.use((req, res) => {

@@ -116,6 +116,29 @@ async function getListingImages(req, res, next) {
   }
 }
 
+async function uploadImages(req, res, next) {
+  try {
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No files uploaded',
+      });
+    }
+
+    const imageUrls = req.files.map(
+      (file) => `/uploads/${file.filename}`
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: 'Images uploaded successfully',
+      imageUrls,
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
 module.exports = {
   createListing,
   getAllListings,
@@ -125,4 +148,5 @@ module.exports = {
   addListingImages,
   deleteListingImage,
   getListingImages,
+  uploadImages,
 };

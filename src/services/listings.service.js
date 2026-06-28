@@ -2,6 +2,34 @@ const listingsRepository = require('../repositories/listings.repository');
 
 const VALID_CONDITIONS = ['NEW', 'LIKE_NEW', 'GOOD', 'FAIR'];
 
+function normalizeListing(listing) {
+  if (!listing) {
+    return listing;
+  }
+
+  return {
+    ...listing,
+    image_urls: Array.isArray(listing.image_urls)
+      ? listing.image_urls.filter(Boolean).map((url) => {
+          if (typeof url !== 'string') {
+            return '';
+          }
+
+          const trimmed = url.trim();
+          if (!trimmed) {
+            return '';
+          }
+
+          if (/^https?:\/\//i.test(trimmed) || trimmed.startsWith('data:')) {
+            return trimmed;
+          }
+
+          return `http://localhost:3000${trimmed.startsWith('/') ? '' : '/'}${trimmed}`;
+        }).filter(Boolean)
+      : [],
+  };
+}
+
 function createError(status, message) {
   const error = new Error(message);
   error.status = status;
@@ -58,11 +86,11 @@ async function getAllListings(page = 1, limit = 10) {
 
   validatePagination(parsedPage, parsedLimit);
 
-  const { data, total } = await listingsRepository.getActiveListings(parsedPage, parsedLimit);
+  const { data, total } = await listingsRepository.getListings(parsedPage, parsedLimit);
   const totalPages = Math.ceil(total / parsedLimit);
 
   return {
-    data,
+    data: data.map(normalizeListing),
     pagination: {
       page: parsedPage,
       limit: parsedLimit,
@@ -79,7 +107,7 @@ async function getListingById(listing_id) {
     throw createError(404, 'Listing not found');
   }
 
-  return listing;
+  return normalizeListing(listing);
 }
 
 async function updateListing(seller_id, listing_id, payload) {
@@ -126,9 +154,13 @@ async function updateListing(seller_id, listing_id, payload) {
   if (payload.expires_at !== undefined) {
     updateFields.expires_at = payload.expires_at;
   }
-  // Sellers are not allowed to update status or sold_at manually
+  // Sellers can only mark a listing as sold through the normal update flow
   if (payload.status !== undefined) {
-    throw createError(400, 'Updating status is not allowed');
+    if (payload.status !== 'SOLD') {
+      throw createError(400, 'Only status SOLD is allowed');
+    }
+    updateFields.status = 'SOLD';
+    updateFields.sold_at = new Date();
   }
   if (payload.sold_at !== undefined) {
     throw createError(400, 'Updating sold_at is not allowed');
@@ -138,7 +170,12 @@ async function updateListing(seller_id, listing_id, payload) {
     return existingListing;
   }
 
-  const updatedListing = await listingsRepository.updateListingById(listing_id, updateFields);
+  let updatedListing;
+  if (payload.status === 'SOLD' && Object.keys(updateFields).length === 2) {
+    updatedListing = await listingsRepository.updateListingToSold(listing_id);
+  } else {
+    updatedListing = await listingsRepository.updateListingById(listing_id, updateFields);
+  }
 
   const auditService = require('./audit.service');
   await auditService.logEvent({
@@ -175,7 +212,7 @@ async function deleteListing(seller_id, listing_id) {
 
 async function addListingImages(seller_id, listing_id, imageUrls) {
   // Verify seller owns the listing
-  const listing = await listingsRepository.getListingById(listing_id);
+  const listing = await listingsRepository.findListingById(listing_id);
   if (!listing) {
     throw createError(404, 'Listing not found');
   }
@@ -199,7 +236,7 @@ async function addListingImages(seller_id, listing_id, imageUrls) {
 
 async function deleteListingImage(seller_id, listing_id, imageUrl) {
   // Verify seller owns the listing
-  const listing = await listingsRepository.getListingById(listing_id);
+  const listing = await listingsRepository.findListingById(listing_id);
   if (!listing) {
     throw createError(404, 'Listing not found');
   }
@@ -222,11 +259,11 @@ async function deleteListingImage(seller_id, listing_id, imageUrl) {
 }
 
 async function getListingImages(listing_id) {
-  const listing = await listingsRepository.getListingById(listing_id);
+  const listing = await listingsRepository.findListingById(listing_id);
   if (!listing) {
     throw createError(404, 'Listing not found');
   }
-  return listing.image_urls || [];
+  return normalizeListing(listing).image_urls || [];
 }
 
 module.exports = {

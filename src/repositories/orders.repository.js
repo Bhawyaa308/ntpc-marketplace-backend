@@ -1,6 +1,18 @@
 const { pool } = require('../config/db');
 
 async function createOrderFromReservation({ reservation_id, buyer_id, seller_id, amount }) {
+  const existingOrder = await pool.query(
+    `SELECT order_id, reservation_id, buyer_id, seller_id, amount, status, completed_at, cancelled_at, created_at
+     FROM orders
+     WHERE reservation_id = $1
+     LIMIT 1`,
+    [reservation_id]
+  );
+
+  if (existingOrder.rows[0]) {
+    return existingOrder.rows[0];
+  }
+
   const { rows } = await pool.query(
     `INSERT INTO orders (
       reservation_id,
